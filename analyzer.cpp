@@ -13,6 +13,8 @@ void TripAnalyzer::ingestFile(const string& csvPath) {
     cin.tie(nullptr);
     zoneMapCount.clear();
     slotMapCount.clear();
+    zoneMapCount.reserve(10000);
+    slotMapCount.reserve(10000);
 
     ifstream file(csvPath);
     string line;
@@ -110,3 +112,4 @@ std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
     result.resize(kk);
     return result;
 }
+
