@@ -18,9 +18,10 @@ struct SlotCount {
 
 class TripAnalyzer {
 public:
-    void ingestStdin();
+    void ingestFile(const string& csvPath);
     std::vector<ZoneCount> topZones(int k = 10) const;
     std::vector<SlotCount> topBusySlots(int k = 10) const;
     std::unordered_map<std::string, long long> zoneMapCount;
     std::unordered_map<std::string, array<long long, 24>> slotMapCount;
 };
+
