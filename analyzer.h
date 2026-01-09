@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <array>
+using namespace std;
 struct ZoneCount {
     std::string zone;
     long long count;
@@ -9,21 +11,16 @@ struct ZoneCount {
 
 struct SlotCount {
     std::string zone;
-    int hour;              // 0-23
+    int hour;             
     long long count;
 };
 
 
 class TripAnalyzer {
 public:
-    // Parse Trips.csv, skip dirty rows, never crash
-    void ingestStdin(const std::string& csvPath);
+    void ingestStdin();
     std::vector<ZoneCount> topZones(int k = 10) const;
-    // Top K zones: count desc, zone asc
     std::vector<SlotCount> topBusySlots(int k = 10) const;
     std::unordered_map<std::string, long long> zoneMapCount;
-    unordered_map<string, array<long long, 24>> slotMapCount;
-    
-    
-
+    std::unordered_map<std::string, array<long long, 24>> slotMapCount;
 };
