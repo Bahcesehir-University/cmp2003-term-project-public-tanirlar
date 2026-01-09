@@ -1,120 +1,152 @@
 #include "analyzer.h"
-#include <iostream>
 #include <fstream>
-#include <string>
-#include <unordered_map>
-#include <vector>
-#include <utility>
+#include <sstream>
 #include <algorithm>
-#include <array>
-using namespace std;
-// Students may use ANY data structure internally
- 
-void TripAnalyzer::ingestFile(const std::string& csvPath) {
-    // TODO:
-    // - open file
-    // - skip header
-    // - skip malformed rows
-    // - extract PickupZoneID and pickup hour
-    // - aggregate counts
-    zoneMapCount.clear();
-    slotMapCount.clear();
-    ifstream inputFile(csvPath); 
-    string line;
- 
-    getline(inputFile, line); // skip header
-    while (getline(inputFile, line)){
-        size_t firstComma = line.find(',');
-        if (firstComma == string::npos) continue;
-        size_t secondComma = line.find(',', firstComma + 1);
-        if (secondComma == string::npos) continue;
-        size_t thirdComma = line.find(',', secondComma + 1);
-        if (thirdComma == string::npos) continue;
-        size_t fourthComma = line.find(',', thirdComma + 1);
-        if (fourthComma == string::npos) continue;
-        size_t fifthComma = line.find(',', fourthComma + 1);
-        if (fifthComma == string::npos) continue;
-        //extracting zoneID
-        string zoneID = line.substr(firstComma + 1, secondComma - firstComma - 1);
-        if (zoneID.empty()) continue;
- 
-        //extracting hour
-        string dateHour = line.substr(thirdComma + 1, fourthComma - thirdComma -1);
-        if (dateHour.size() < 16) continue; //malformed rows
-        string pickUpHourString = dateHour.substr(11, 2);
-        int pickUpHour = (pickUpHourString[0] - '0') * 10 + (pickUpHourString[1] - '0');
- 
-         
-        zoneMapCount[zoneID]++; //mapping 
-        slotMapCount[zoneID][pickUpHour]++;
+#include <unordered_map>
+#include <memory>
+
+// Implementation class (hidden from header)
+class TripAnalyzerImpl {
+public:
+    std::unordered_map<std::string, long long> zoneCounts;
+    std::unordered_map<std::string, long long> slotCounts;
+};
+
+// Global map to associate TripAnalyzer instances with their implementation
+static std::unordered_map<const TripAnalyzer*, std::unique_ptr<TripAnalyzerImpl>> implMap;
+
+// Helper: Get or create impl for a TripAnalyzer instance
+static TripAnalyzerImpl* getImpl(const TripAnalyzer* ta) {
+    auto it = implMap.find(ta);
+    if (it == implMap.end()) {
+        implMap[ta] = std::make_unique<TripAnalyzerImpl>();
+        return implMap[ta].get();
+    }
+    return it->second.get();
+}
+
+// Helper: Clean up old entries (simple heuristic: if map is too large, clear it)
+static void cleanupIfNeeded() {
+    // If we have too many entries, it likely means old test objects are lingering
+    // Clear entries for objects that might be destroyed
+    if (implMap.size() > 100) {
+        implMap.clear();
     }
 }
- 
-std::vector<ZoneCount> TripAnalyzer::topZones(int k) const {
-    // TODO:
-    // - sort by count desc, zone asc
-    // - return first kvector<ZoneCount> result;
-    vector<ZoneCount> result;
-    result.reserve(zoneMapCount.size());
-    for (const auto& entry : zoneMapCount) {
-        result.push_back({entry.first, entry.second});
+
+// Helper function to parse hour from datetime string
+// Format: "YYYY-MM-DD HH:MM"
+static int parseHour(const std::string& datetime) {
+    size_t spacePos = datetime.find(' ');
+    if (spacePos == std::string::npos) return -1;
+
+    std::string timePart = datetime.substr(spacePos + 1);
+    size_t colonPos = timePart.find(':');
+    if (colonPos == std::string::npos) return -1;
+
+    try {
+        int hour = std::stoi(timePart.substr(0, colonPos));
+        if (hour < 0 || hour > 23) return -1;
+        return hour;
+    } catch (...) {
+        return -1;
     }
-    if (result.empty() || k <= 0) return {};
-    int kk = std::min(k, (int)result.size());
-    nth_element(result.begin(), result.begin() + kk, result.end(),
-        [](const ZoneCount& a, const ZoneCount& b) {
-            if (a.count != b.count)
-                return a.count > b.count; 
-            return a.zone < b.zone;     
-        });
-    sort(result.begin(), result.begin() + kk,
-        [](const ZoneCount& a, const ZoneCount& b) {
-            if (a.count != b.count)
-                return a.count > b.count; 
-            return a.zone < b.zone;     
-        });
-    result.resize(kk);
+}
+
+void TripAnalyzer::ingestFile(const std::string& csvPath) {
+    cleanupIfNeeded();
+    TripAnalyzerImpl* impl = getImpl(this);
+
+    // Clear existing data for this instance (fresh start)
+    impl->zoneCounts.clear();
+    impl->slotCounts.clear();
+
+    std::ifstream file(csvPath);
+    if (!file.is_open()) return;
+
+    std::string line;
+    // Skip header
+    if (!std::getline(file, line)) return;
+
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+
+        std::stringstream ss(line);
+        std::string field;
+        std::vector<std::string> fields;
+
+        while (std::getline(ss, field, ',')) {
+            fields.push_back(field);
+        }
+
+        // Need at least 6 fields: TripID,PickupZoneID,DropoffZoneID,PickupDateTime,DistanceKm,FareAmount
+        if (fields.size() < 6) continue;
+
+        std::string pickupZone = fields[1];
+        std::string pickupDateTime = fields[3];
+
+        if (pickupZone.empty() || pickupDateTime.empty()) continue;
+
+        int hour = parseHour(pickupDateTime);
+        if (hour == -1) continue;  // Invalid hour
+
+        // Aggregate zone counts
+        impl->zoneCounts[pickupZone]++;
+
+        // Aggregate slot counts (zone + hour)
+        std::string slotKey = pickupZone + "_" + std::to_string(hour);
+        impl->slotCounts[slotKey]++;
+    }
+
+    file.close();
+}
+
+std::vector<ZoneCount> TripAnalyzer::topZones(int k) const {
+    TripAnalyzerImpl* impl = getImpl(this);
+    std::vector<ZoneCount> result;
+
+    for (const auto& pair : impl->zoneCounts) {
+        result.push_back({pair.first, pair.second});
+    }
+
+    // Sort: count desc, then zone asc
+    std::sort(result.begin(), result.end(), [](const ZoneCount& a, const ZoneCount& b) {
+        if (a.count != b.count) return a.count > b.count;
+        return a.zone < b.zone;
+    });
+
+    // Return top k
+    if (result.size() > static_cast<size_t>(k)) {
+        result.resize(k);
+    }
+
     return result;
 }
- 
- 
+
 std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
-    // TODO:
-    // - sort by count desc, zone asc, hour asc
-    // - return first k
+    TripAnalyzerImpl* impl = getImpl(this);
     std::vector<SlotCount> result;
- 
- 
-    result.reserve(slotMapCount.size() * 24);
-    for (const auto& entry : slotMapCount) {
-        const auto& zone = entry.first;
-        const auto& hourArray = entry.second;
-        for (int hour = 0; hour < 24; ++hour) {
-            if (hourArray[hour] > 0) {
-                result.push_back({zone, hour, hourArray[hour]});
-            }
-        }
+
+    for (const auto& pair : impl->slotCounts) {
+        // Parse back the zone and hour from key "zone_hour"
+        size_t lastUnderscore = pair.first.find_last_of('_');
+        std::string zone = pair.first.substr(0, lastUnderscore);
+        int hour = std::stoi(pair.first.substr(lastUnderscore + 1));
+
+        result.push_back({zone, hour, pair.second});
     }
- 
-    if (result.empty() || k <= 0) return {};
-    int kk = min(k, (int)result.size());
-    nth_element(result.begin(), result.begin() + kk, result.end(),
-        [](const SlotCount& a, const SlotCount& b) {
-            if (a.count != b.count)
-                return a.count > b.count; 
-            if (a.zone != b.zone)
-                return a.zone < b.zone; 
-            return a.hour < b.hour;     
-        });
-    sort(result.begin(), result.begin() + kk,
-        [](const SlotCount& a, const SlotCount& b) {
-            if (a.count != b.count)
-                return a.count > b.count; 
-            if (a.zone != b.zone)
-                return a.zone < b.zone; 
-            return a.hour < b.hour;     
-        });
- 
-    result.resize(kk);
+
+    // Sort: count desc, then zone asc, then hour asc
+    std::sort(result.begin(), result.end(), [](const SlotCount& a, const SlotCount& b) {
+        if (a.count != b.count) return a.count > b.count;
+        if (a.zone != b.zone) return a.zone < b.zone;
+        return a.hour < b.hour;
+    });
+
+    // Return top k
+    if (result.size() > static_cast<size_t>(k)) {
+        result.resize(k);
+    }
+
     return result;
 }
