@@ -9,7 +9,7 @@
 #include <array>
 using namespace std;
 // Students may use ANY data structure internally
-
+ 
 void TripAnalyzer::ingestFile(const std::string& csvPath) {
     // TODO:
     // - open file
@@ -21,7 +21,7 @@ void TripAnalyzer::ingestFile(const std::string& csvPath) {
     slotMapCount.clear();
     ifstream inputFile(csvPath); 
     string line;
-
+ 
     getline(inputFile, line); // skip header
     while (getline(inputFile, line)){
         size_t firstComma = line.find(',');
@@ -34,23 +34,22 @@ void TripAnalyzer::ingestFile(const std::string& csvPath) {
         if (fourthComma == string::npos) continue;
         size_t fifthComma = line.find(',', fourthComma + 1);
         if (fifthComma == string::npos) continue;
-         
         //extracting zoneID
         string zoneID = line.substr(firstComma + 1, secondComma - firstComma - 1);
         if (zoneID.empty()) continue;
-
+ 
         //extracting hour
         string dateHour = line.substr(thirdComma + 1, fourthComma - thirdComma -1);
         if (dateHour.size() < 16) continue; //malformed rows
         string pickUpHourString = dateHour.substr(11, 2);
         int pickUpHour = (pickUpHourString[0] - '0') * 10 + (pickUpHourString[1] - '0');
-
+ 
          
         zoneMapCount[zoneID]++; //mapping 
         slotMapCount[zoneID][pickUpHour]++;
     }
 }
-
+ 
 std::vector<ZoneCount> TripAnalyzer::topZones(int k) const {
     // TODO:
     // - sort by count desc, zone asc
@@ -77,15 +76,15 @@ std::vector<ZoneCount> TripAnalyzer::topZones(int k) const {
     result.resize(kk);
     return result;
 }
-
-
+ 
+ 
 std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
     // TODO:
     // - sort by count desc, zone asc, hour asc
     // - return first k
     std::vector<SlotCount> result;
-
-
+ 
+ 
     result.reserve(slotMapCount.size() * 24);
     for (const auto& entry : slotMapCount) {
         const auto& zone = entry.first;
@@ -96,7 +95,7 @@ std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
             }
         }
     }
-
+ 
     if (result.empty() || k <= 0) return {};
     int kk = min(k, (int)result.size());
     nth_element(result.begin(), result.begin() + kk, result.end(),
@@ -115,13 +114,7 @@ std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
                 return a.zone < b.zone; 
             return a.hour < b.hour;     
         });
-
+ 
     result.resize(kk);
     return result;
 }
-
-
-
-
-
-
