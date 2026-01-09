@@ -1,52 +1,47 @@
-#include <iostream>
-#include <fstream>
 #include <string>
-#include <unordered_map>
-#include <chrono>
 #include <vector>
-#include <utility>
+#include <iostream>
 #include <algorithm>
+#include <unordered_map>
+#include <utility>
+#include <fstream>
 #include <array>
 using namespace std;
-
-
+// ===================== analyzer.h (inlined) =====================
 struct ZoneCount {
-    string zone;
+    std::string zone;
     long long count;
 };
+
 struct SlotCount {
-    string zone;
-    int hour;
+    std::string zone;
+    int hour;              // 0-23
     long long count;
 };
-// Students may use ANY data structure internally
+
+
 class TripAnalyzer {
 public:
     // Parse Trips.csv, skip dirty rows, never crash
-    void ingestFile(const std::string& csvPath);
-
+    void ingestStdin(const std::string& csvPath);
+    std::vector<ZoneCount> topZones(int k = 10) const;
     // Top K zones: count desc, zone asc
-    vector<ZoneCount> topZones(int k = 10) const;
-
-    // Top K slots: count desc, zone asc, hour asc
-    vector<SlotCount> topBusySlots(int k = 10) const;
-    unordered_map<string, long long> zoneMapCount;
+    std::vector<SlotCount> topBusySlots(int k = 10) const;
+    std::unordered_map<std::string, long long> zoneMapCount;
     unordered_map<string, array<long long, 24>> slotMapCount;
-
+    
     
 
 };
 
-void TripAnalyzer::ingestFile(const std::string& csvPath) {
-    // TODO:
-    // - open file
-    // - skip header
-    // - skip malformed rows
-    // - extract PickupZoneID and pickup hour
-    // - aggregate counts
+// ===================== analyzer.cpp (inlined) =====================
+
+
+void TripAnalyzer::ingestStdin(const std::string& csvPath) {
     zoneMapCount.clear();
     slotMapCount.clear();
-    ifstream inputFile(csvPath); 
+    ifstream inputFile(csvPath);
+    if (!inputFile.is_open()) return;
     string line;
 
     getline(inputFile, line); // skip header
@@ -102,10 +97,11 @@ void TripAnalyzer::ingestFile(const std::string& csvPath) {
 
 }
 }
+
 std::vector<ZoneCount> TripAnalyzer::topZones(int k) const {
     // TODO:
     // - sort by count desc, zone asc
-    // - return first k
+    // - return first kvector<ZoneCount> result;
     vector<ZoneCount> result;
     result.reserve(zoneMapCount.size());
     for (const auto& entry : zoneMapCount) {
@@ -121,12 +117,15 @@ std::vector<ZoneCount> TripAnalyzer::topZones(int k) const {
         });
     result.resize(kk);
     return result;
-}  
+}
+
+
 std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
+    // TODO:
+    // - sort by count desc, zone asc, hour asc
+    // - return first k
     std::vector<SlotCount> result;
-
-
-    result.reserve(slotMapCount.size() * 24);
+    result.reserve(slotMapCount.size());
     for (const auto& entry : slotMapCount) {
         const auto& zone = entry.first;
         const auto& hourArray = entry.second;
@@ -136,44 +135,26 @@ std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
             }
         }
     }
-
     if (result.empty() || k <= 0) return {};
-    int kk = min(k, (int)result.size());
-    partial_sort(
-        result.begin(),
-        result.begin() + kk,
-        result.end(),
+    int kk = std::min(k, (int)result.size());
+    partial_sort(result.begin(), result.begin() + kk, result.end(),
         [](const SlotCount& a, const SlotCount& b) {
             if (a.count != b.count)
-                return a.count > b.count;
+                return a.count > b.count; 
             if (a.zone != b.zone)
-                return a.zone < b.zone;
-            return a.hour < b.hour;
-        }
-    );
-
+                return a.zone < b.zone; 
+            return a.hour < b.hour;     
+        });
     result.resize(kk);
     return result;
 }
 
-static void printZones(const std::vector<ZoneCount>& v) {
-    std::cout << "TOP_ZONES\n";
-    for (auto& x : v)
-        std::cout << x.zone << "," << x.count << "\n";
-}
-
-static void printSlots(const std::vector<SlotCount>& v) {
-    std::cout << "TOP_SLOTS\n";
-    for (auto& x : v)
-        std::cout << x.zone << "," << x.hour << "," << x.count << "\n";
-}
-
 int main() {
-    auto t0 = std::chrono::high_resolution_clock::now();
+   auto t0 = std::chrono::high_resolution_clock::now();
 
     
     TripAnalyzer analyzer;
-    analyzer.ingestFile("SmallTrips.csv");
+    analyzer.ingestStdin("SmallTrips.csv");
 
     cout << "TOP_ZONES\n";
     for (auto& z : analyzer.topZones())
